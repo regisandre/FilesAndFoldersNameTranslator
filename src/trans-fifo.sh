@@ -4,7 +4,7 @@
 # Script Name	: Files and folders name translator | trans-fifo.sh
 # Description	: Translate all directory and/or files in the current directory using translate-shell
 # Args          : 
-# Parameters	: nothing=transtale folders and files, d=directory type, f=file type
+# Parameters	: 1 : choose the translator to use, google or bing; 2 : nothing=transtale folders and files, d=directory type, f=file type
 # Author	   	: Régis "Sioxox" André
 # Email	    	: pro@regisandre.be
 # Website		: https://regisandre.be
@@ -18,37 +18,51 @@ NC='\033[0m' # No Color
 # Check if there is Internet connection
 if ping -q -c 1 -W 1 8.8.8.8 > /dev/null; then
 	echo -ne "\n${GREEN}Internet connection : OK${NC}\n\n"
+
+	# Check if all the need packages and scripts are installed
+	# Packages needed : translate-shell, findutils, sed, grep, zenity, zenity-common
+	packagesNeeded=(translate-shell findutils sed grep zenity zenity-common)
+	packagesThatMustBeInstalled=""
+	for pn in ${packagesNeeded[@]}; do
+		if [[ $(dpkg -s $pn | grep Status) != *"installed"* ]]; then
+			echo -e "${RED}$pn is not installed${NC}"
+			packagesThatMustBeInstalled+="$pn "
+		fi
+	done
+
+	# Automatically install required packages and scripts
+	if [[ ! -z "$packagesThatMustBeInstalled" ]]; then
+		if zenity --question --title="Confirm automatic installation" --text="Are you sure you want to go ahead and install these programs: $packagesThatMustBeInstalled" --no-wrap 
+	    then
+	        sudo apt update && sudo apt install -y $packagesThatMustBeInstalled
+	    else
+	    	zenity --error --title="Packages needed" --text="These packages must be installed for the script to work" --no-wrap
+	    	echo -ne "\n${RED}These packages must be installed for the script to work${NC}\n\n"
+	    	exit 1
+		fi
+	fi
 else
 	echo -ne "${RED}First, connect the computer to the Internet${NC}\n\n"
 	zenity --error --title="Internet problem" --text="First, connect the computer to the Internet" --no-wrap
 	exit 1
 fi
 
-# Check if all the need packages are installed
-if ! command -v trans &> /dev/null; then 
-	echo -e "${RED}trans is not installed${NC}"
-
-	# Automatically install required packages
-	if zenity --question --title="Confirm automatic installation" --text="Are you sure you want to go ahead and install these programs: trans" --no-wrap 
-    then
-        sudo apt update && sudo apt install -y translate-shell
-    else
-    	zenity --error --title="Packages needed" --text="These packages must be installed for the script to work" --no-wrap
-    	echo -ne "\n${RED}These packages must be installed for the script to work${NC}\n\n"
-    	exit 1
-	fi
+if [[ ! -z $1 ]] && [[ "$1" == "bing" || "$1" == "google" ]]; then
+	export translator="$1"
+else
+	export translator="bing"
 fi
 
-if [[ ! -z $1 ]]; then
-	echo "yes"
-	type="-type $1"
+if [[ ! -z $2 ]]; then
+	type="-type $2"
 else
 	type=""
-	echo "no $type"
 fi
 
+echo -e "${RED}Translator : $translator${NC}"
+
 # Translate all folders and files name in the current directory. translate-shell can use other translator, to show the list of all available translators, use this command : "trans -S"
-find * -depth $type -execdir bash -c 'mv "{}" "$(trans -no-warn -no-autocorrect -e google -b fr:en "{}" | sed "s/ \/ /\//g")"' {} \;
+find * $type -depth -exec bash -c 'mv "{}" "$(trans -no-warn -no-autocorrect -e $translator -b fr:en "{}" | sed "s/ \/ /\//g")"' {} \;
 
 
 
